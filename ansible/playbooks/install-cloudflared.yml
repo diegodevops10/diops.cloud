@@ -1,5 +1,5 @@
 - name: Install Cloudflare Tunnel Agent (cloudflared)
-  hosts: all
+  hosts: cloudflared
   become: true
 
   vars:

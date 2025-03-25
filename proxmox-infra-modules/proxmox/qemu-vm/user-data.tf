@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    hostname: ${var.node_name}
+    hostname: ${var.machine_name}
     users:
       - default
       - name: ubuntu
@@ -25,6 +25,6 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
         - echo "done" > /tmp/cloud-config.done
     EOF
 
-    file_name = "user-data-cloud-${var.node_name}.yaml"
+    file_name = "user-data-cloud-${var.machine_name}.yaml"
   }
 }

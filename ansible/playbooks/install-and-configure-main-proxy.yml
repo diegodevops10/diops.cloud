@@ -4,7 +4,7 @@
     NODE_MASTER_IP1: 192.168.15.154
     NODE_MASTER_IP2: 192.168.15.155
     NODE_MASTER_IP3: 192.168.15.156
-  become: yes
+  become: true
   tasks:
     - fail:
        msg: "OS should be Ubuntu 22.04, not {{ ansible_distribution }} {{ ansible_distribution_version }}"
@@ -100,8 +100,12 @@
       shell: echo 'net.ipv4.ip_nonlocal_bind=1'| tee -a /etc/sysctl.conf && sysctl -p
 
 - hosts: vm-haproxy-01
-  vars_files: variables.yml
-  become: yes
+  vars:
+    API_LOADBALANCER_IP: 192.168.15.150
+    NODE_MASTER_IP1: 192.168.15.154
+    NODE_MASTER_IP2: 192.168.15.155
+    NODE_MASTER_IP3: 192.168.15.156
+  become: true
   tasks:
     - name: configuring the keepalived for floating IP
       blockinfile:
@@ -123,7 +127,7 @@
           
           vrrp_instance VI_1 {
               state MASTER
-              interface ens160
+              interface eth0
               virtual_router_id 51
               priority 255
               authentication {
@@ -142,8 +146,12 @@
           }
 
 - hosts: vm-haproxy-02
-  vars_files: variables.yml
-  become: yes
+  vars:
+    API_LOADBALANCER_IP: 192.168.15.150
+    NODE_MASTER_IP1: 192.168.15.154
+    NODE_MASTER_IP2: 192.168.15.155
+    NODE_MASTER_IP3: 192.168.15.156
+  become: true
   tasks:
     - name: configuring the keepalived for floating IP
       blockinfile:
@@ -165,7 +173,7 @@
           
           vrrp_instance VI_1 {
               state BACKUP
-              interface ens160
+              interface eth0
               virtual_router_id 51
               priority 254
               authentication {
@@ -184,8 +192,12 @@
           }
 
 - hosts: loadbalancer
-  vars_files: variables.yml
-  become: yes
+  vars:
+    API_LOADBALANCER_IP: 192.168.15.150
+    NODE_MASTER_IP1: 192.168.15.154
+    NODE_MASTER_IP2: 192.168.15.155
+    NODE_MASTER_IP3: 192.168.15.156
+  become: true
   tasks:
     - name: enabling service keepalived and ensure it is not masked
       systemd:
