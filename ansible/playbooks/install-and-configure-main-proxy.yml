@@ -1,0 +1,230 @@
+- hosts: loadbalancer
+  vars:
+    API_LOADBALANCER_IP: 192.168.15.150
+    NODE_MASTER_IP1: 192.168.15.154
+    NODE_MASTER_IP2: 192.168.15.155
+    NODE_MASTER_IP3: 192.168.15.156
+  become: yes
+  tasks:
+    - fail:
+       msg: "OS should be Ubuntu 22.04, not {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: ansible_distribution != 'Ubuntu' or ansible_distribution_version != '22.04'
+
+    - name: update APT packages
+      apt:
+        update_cache: yes
+
+    - name: install KeepAlived for Floating IP
+      apt:
+        name: keepalived
+        state: present
+
+    - name: install HAProxy for Loadbalancing
+      apt:
+        name: haproxy
+        state: present
+
+    - name: Remove content of KeepAlived Default config
+      shell: echo "" > /etc/keepalived/keepalived.conf
+      args:
+        chdir: /root/
+
+    - name: create an empty file for keepalived healthchecks
+      copy:
+        content: ""
+        dest: /etc/keepalived/check_apiserver.sh
+        force: no
+
+    - name: configuring the keepalived healthchecks
+      shell: |
+        echo '#!/bin/sh
+        errorExit() {
+            echo "*** $*" 1>&2
+            exit 1
+        }
+        curl --silent --max-time 2 --insecure https://localhost:8443/ -o /dev/null || errorExit "Error GET https://localhost:8443/"
+        if ip addr | grep -q {{ API_LOADBALANCER_IP }}; then
+            curl --silent --max-time 2 --insecure https://{{ API_LOADBALANCER_IP }}:8443/ -o /dev/null || errorExit "Error GET https://{{ API_LOADBALANCER_IP }}:8443/"
+        fi' > /etc/keepalived/check_apiserver.sh
+
+    - name: create an empty file for keepalived status check
+      copy:
+        content: ""
+        dest: /etc/keepalived/status_capture.sh
+        force: no
+
+    - name: configuring the keepalived status checking
+      shell: |
+        echo '#!/bin/bash
+        echo "$(date): The loadbalancer instance running on $(hostname) is currently marker $1" |tee /tmp/load-balancer-status
+        chmod 755 /tmp/load-balancer-status || true' > /etc/keepalived/status_capture.sh
+
+    - name: Changing perm of "/etc/keepalived/status_capture.sh", adding "+x"
+      file: dest=/etc/keepalived/status_capture.sh mode=a+x
+
+    - name: Changing perm of "/etc/keepalived/check_apiserver.sh", adding "+x"
+      file: dest=/etc/keepalived/check_apiserver.sh mode=a+x
+
+    - name: Remove content of HAproxy Default config
+      shell: echo "" > /etc/haproxy/haproxy.cfg
+      args:
+        chdir: /root/
+
+    - name: configuring the haproxy redirects
+      blockinfile:
+        path: /etc/haproxy/haproxy.cfg
+        block: |
+          defaults
+            mode tcp
+            timeout connect 10s
+            timeout client 30s
+            timeout server 30s
+          
+          frontend apiserver
+            bind *:8443
+            mode tcp
+            option tcplog
+            log 127.0.0.1 local0
+            default_backend apiserver
+          
+          backend apiserver
+            option httpchk GET /healthz
+            http-check expect status 200
+            mode tcp
+            option ssl-hello-chk
+            balance     roundrobin
+            server node1 {{ NODE_MASTER_IP1 }}:6443 check
+            server node2 {{ NODE_MASTER_IP2 }}:6443 check
+            server node3 {{ NODE_MASTER_IP3 }}:6443 check
+    - name: Configuring no local bind
+      shell: echo 'net.ipv4.ip_nonlocal_bind=1'| tee -a /etc/sysctl.conf && sysctl -p
+
+- hosts: vm-haproxy-01
+  vars_files: variables.yml
+  become: yes
+  tasks:
+    - name: configuring the keepalived for floating IP
+      blockinfile:
+        create: true
+        path: /etc/keepalived/keepalived.conf
+        block: |
+          global_defs {
+          router_id LVS_DEVEL
+          script_user root
+          enable_script_security
+          }
+          vrrp_script check_apiserver {
+            script "/etc/keepalived/check_apiserver.sh"
+            interval 3
+            weight -2
+            fall 10
+            rise 2
+          }
+          
+          vrrp_instance VI_1 {
+              state MASTER
+              interface ens160
+              virtual_router_id 51
+              priority 255
+              authentication {
+              auth_type PASS
+              auth_pass mypass
+              }
+              virtual_ipaddress {
+                  {{ API_LOADBALANCER_IP }}
+              }
+              track_script {
+                  check_apiserver
+              }
+              notify_master "/etc/keepalived/status_capture.sh MASTER"
+              notify_backup "/etc/keepalived/status_capture.sh BACKUP"
+              notify_fault  "/etc/keepalived/status_capture.sh FAULT"
+          }
+
+- hosts: vm-haproxy-02
+  vars_files: variables.yml
+  become: yes
+  tasks:
+    - name: configuring the keepalived for floating IP
+      blockinfile:
+        create: true
+        path: /etc/keepalived/keepalived.conf
+        block: |
+          global_defs {
+          router_id LVS_DEVEL
+          script_user root
+          enable_script_security
+          }
+          vrrp_script check_apiserver {
+            script "/etc/keepalived/check_apiserver.sh"
+            interval 3
+            weight -2
+            fall 10
+            rise 2
+          }
+          
+          vrrp_instance VI_1 {
+              state BACKUP
+              interface ens160
+              virtual_router_id 51
+              priority 254
+              authentication {
+              auth_type PASS
+              auth_pass mypass
+              }
+              virtual_ipaddress {
+                  {{ API_LOADBALANCER_IP }}
+              }
+              track_script {
+                  check_apiserver
+              }
+              notify_master "/etc/keepalived/status_capture.sh MASTER"
+              notify_backup "/etc/keepalived/status_capture.sh BACKUP"
+              notify_fault  "/etc/keepalived/status_capture.sh FAULT"
+          }
+
+- hosts: loadbalancer
+  vars_files: variables.yml
+  become: yes
+  tasks:
+    - name: enabling service keepalived and ensure it is not masked
+      systemd:
+        name: keepalived
+        enabled: yes
+        masked: no
+
+    - name: enable service KeepAlived and ensure it is not masked
+      systemd:
+        name: keepalived
+        enabled: yes
+        masked: no
+
+    - name: Start Keepalived Service
+      systemd:
+        state: started
+        name: keepalived
+    
+    - name: enable service Haproxy and ensure it is not masked
+      systemd:
+        name: haproxy
+        enabled: yes
+        masked: no
+
+    - name: stopping UFW
+      systemd:
+        state: stopped
+        name: ufw
+
+    - name: Disable UFW Firewall
+      systemd:
+        name: ufw
+        enabled: no
+        masked: no
+
+    - name: Start Haproxy Service
+      systemd:
+        state: started
+        name: haproxy
+
+    - name: Restart service haproxy, in all cases, also issue daemon-reload to pick up config changes
+      shell: sleep 10 && systemctl restart haproxy

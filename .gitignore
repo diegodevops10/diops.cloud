@@ -1,0 +1,36 @@
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+
+# Terraform variable files
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Terraform plan files
+*.tfplan
+
+# Terraform lock file
+.terraform.lock.hcl
+
+# Terraform crash logs
+crash.log
+
+# Terraform working directory
+.terraform/
+
+# Terragrunt cache and working directories
+.terragrunt-cache/
+.terragrunt-cache/**
+
+# Terragrunt logs (if you log to a file)
+terragrunt-debug.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore SSH keys
+id_rsa
+id_rsa.*

@@ -1,0 +1,19 @@
+all:
+  hosts:
+    vm-cloudflared-01:
+      ansible_host: 192.168.15.151
+      ansible_user: ubuntu
+    vm-haproxy-01:
+      ansible_host: 192.168.15.152
+      ansible_user: ubuntu
+    vm-haproxy-02:
+      ansible_host: 192.168.15.153
+      ansible_user: ubuntu
+  children:
+    loadbalancer:
+      hosts:
+        vm-haproxy-01:
+        vm-haproxy-02:
+    cloudflared:
+      hosts:
+        vm-cloudflared-01:

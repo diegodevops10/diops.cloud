@@ -1,0 +1,27 @@
+- name: Install Cloudflare Tunnel Agent (cloudflared)
+  hosts: all
+  become: true
+
+  vars:
+    cloudflared_url: "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
+    cloudflared_deb_path: "/tmp/cloudflared.deb"
+    cloudflared_token: "{{ lookup('env', 'CLOUDFLARED_TOKEN') }}"  # <- vindo do ambiente local
+
+  tasks:
+    - name: Download cloudflared .deb package
+      get_url:
+        url: "{{ cloudflared_url }}"
+        dest: "{{ cloudflared_deb_path }}"
+        mode: '0644'
+
+    - name: Install cloudflared package
+      apt:
+        deb: "{{ cloudflared_deb_path }}"
+        state: present
+
+    - name: Install cloudflared as a systemd service
+      environment:
+        CLOUDFLARED_TOKEN: "{{ cloudflared_token }}"
+      command: "bash -c 'cloudflared service install $CLOUDFLARED_TOKEN'"
+      args:
+        creates: /etc/systemd/system/cloudflared.service
