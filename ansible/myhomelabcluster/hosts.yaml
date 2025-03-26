@@ -1,0 +1,61 @@
+all:
+  hosts:
+    vm-control-plane-01:
+      ansible_host: 192.168.15.154
+      ip: 192.168.15.154
+      access_ip: 192.168.15.154
+    vm-control-plane-02:
+      ansible_host: 192.168.15.155
+      ip: 192.168.15.155
+      access_ip: 192.168.15.155
+    vm-control-plane-03:
+      ansible_host: 192.168.15.156
+      ip: 192.168.15.156
+      access_ip: 192.168.15.156
+    vm-data-plane-01:
+      ansible_host: 192.168.15.157
+      ip: 192.168.15.157
+      access_ip: 192.168.15.157
+    vm-data-plane-02:
+      ansible_host: 192.168.15.158
+      ip: 192.168.15.158
+      access_ip: 192.168.15.158
+    vm-data-plane-03:
+      ansible_host: 192.168.15.159
+      ip: 192.168.15.159
+      access_ip: 192.168.15.159
+    vm-data-plane-04:
+      ansible_host: 192.168.15.160
+      ip: 192.168.15.160
+      access_ip: 192.168.15.160
+    vm-data-plane-05:
+      ansible_host: 192.168.15.161
+      ip: 192.168.15.161
+      access_ip: 192.168.15.161
+  children:
+    kube_control_plane:
+      hosts:
+        vm-control-plane-01:
+        vm-control-plane-02:
+        vm-control-plane-03:
+    kube_node:
+      hosts:
+        vm-control-plane-01:
+        vm-control-plane-02:
+        vm-control-plane-03:
+        vm-data-plane-01:
+        vm-data-plane-02:
+        vm-data-plane-03:
+        vm-data-plane-04:
+        vm-data-plane-05:
+    etcd:
+      hosts:
+        vm-control-plane-01:
+        vm-control-plane-02:
+        vm-control-plane-03:
+    k8s_cluster:
+      children:
+        kube_control_plane:
+        kube_node:
+    calico_rr:
+      hosts: {}

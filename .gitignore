@@ -34,3 +34,9 @@ Thumbs.db
 # Ignore SSH keys
 id_rsa
 id_rsa.*
+
+# Pyhton venv configs
+venv
+
+# Ignore kubespray folder
+kubespray
